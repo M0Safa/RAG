@@ -80,15 +80,10 @@ def chunk_python(file_path: str, content: str, max_chunck: int = 2000) -> List[D
 
 
 def process_corpus(root_dir: str, max_chunck: int = 2000) -> List[Dict[str, Any]]:
-    """Scans the vLLM corpus directory, routes files to the correct chunker,
-
-    and collects all chunks.
-    """
     all_chunks = []
     for root, _, files in os.walk(root_dir):
         for file in files:
             full_path = os.path.join(root, file)
-            # Normalize path to match expected format (e.g., data/raw/vllm-0.10.1/...)
             norm_path = full_path.replace("\\", "/")
             
             try:
@@ -105,5 +100,5 @@ def process_corpus(root_dir: str, max_chunck: int = 2000) -> List[Dict[str, Any]
                 continue
                 
             all_chunks.extend(file_chunks)
-            
+ 
     return all_chunks
