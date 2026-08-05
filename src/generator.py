@@ -57,7 +57,7 @@ class RAGGenerator:
             {"role": "user", "content": user_content},
         ]
 
-        # Apply chat template formatting
+
         prompt_text = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
@@ -68,10 +68,9 @@ class RAGGenerator:
             generated_ids = self.model.generate(
                 **model_inputs,
                 max_new_tokens=max_new_tokens,
-                do_sample=False,  # Greedy decoding for consistent, deterministic answers
+                do_sample=False,
             )
 
-        # Slice out prompt tokens from response
         output_ids = [
             out_ids[len(in_ids):]
             for in_ids, out_ids in zip(model_inputs.input_ids, generated_ids)
@@ -89,6 +88,5 @@ class RAGGenerator:
     def answer_question(
         self, question: Union[UnansweredQuestion, AnsweredQuestion], k: int = 5
     ) -> MinimalAnswer:
-        """End-to-end pipeline: searches for sources then generates the answer."""
-        search_results = self.retriever.search_question(question, k=k)
+        search_results = self.retriever.search_question(question, k)
         return self.generate_answer(search_results)
