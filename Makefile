@@ -4,8 +4,20 @@ install:
 	uv sync
 
 run:
-	uv run python -m src --help
+	uv run python -m src
 
+eval_code:
+	./moulinette-ubuntu evaluate_student_search_results \
+    data/output/search_code_results.json \
+    data/datasets/AnsweredQuestions/dataset_code_public.json \
+    --k 10 \
+    --max_context_length 2000
+eval_docs:
+	./moulinette-ubuntu evaluate_student_search_results \
+    data/output/search_docs_results.json \
+    data/datasets/AnsweredQuestions/dataset_docs_public.json \
+    --k 10 \
+    --max_context_length 2000
 debug:
 	uv run python -m pdb -m src --help
 
