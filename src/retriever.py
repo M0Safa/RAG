@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Union
 import numpy as np
 from rank_bm25 import BM25Okapi
-
 from src.models import MinimalSource, MinimalSearchResults, UnansweredQuestion, AnsweredQuestion
 from src.tokenizer import tokenize
 from src.indexer import load_index_and_chunks

@@ -14,3 +14,5 @@ dependencies = [
     "tqdm>=4.69.1",
     "transformers>=5.14.1",
 ]
+[project.scripts]
+rag = "src.cli:main"

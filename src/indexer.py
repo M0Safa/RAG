@@ -3,12 +3,11 @@ import json
 import pickle
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
-
 from src.chunker import process_corpus
 from src.tokenizer import tokenize
-
 import json
 from rank_bm25 import BM25Okapi
+
 
 def build_and_save_index(
     raw_dir: str = "data/raw/vllm-0.10.1",
@@ -25,7 +24,7 @@ def build_and_save_index(
     tokenized_corpus: List[List[str]] = [tokenize(f"{chunk['file_path']} {chunk['file_path']}\n{chunk['text']}") for chunk in chunks]
 
     print("--> Building BM25 index...")
-    bm25_index = BM25Okapi(tokenized_corpus, k1=1.2, b=0.3)
+    bm25_index = BM25Okapi(tokenized_corpus, k1=1.4, b=0.7)
 
     os.makedirs(processed_dir, exist_ok=True)
 
