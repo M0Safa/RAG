@@ -10,7 +10,7 @@ class RAGGenerator:
 
     def __init__(
         self,
-        model_name: str = "Qwen/Qwen2.5-0.5B-Instruct",
+        model_name: str = "Qwen/Qwen3-0.6B",
         processed_dir: str = "data/processed",
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ) -> None:
@@ -59,7 +59,8 @@ class RAGGenerator:
 
 
         prompt_text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+            messages, tokenize=False, add_generation_prompt=True,
+            enable_thinking=False,
         )
 
         model_inputs = self.tokenizer([prompt_text], return_tensors="pt").to(self.device)

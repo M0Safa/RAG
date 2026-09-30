@@ -5,8 +5,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, PythonCodeT
 from langchain_core.documents import Document
 
 
-def chunk_markdown(file_path: str, content: str, max_chunk:int = 2000) -> List[Dict[str, Any]]:
-    splitter = RecursiveCharacterTextSplitter(chunk_size=max_chunk, chunk_overlap=int(max_chunk * 0.14), add_start_index=True)
+def chunk_markdown(file_path: str, content: str, max_chunk:int) -> List[Dict[str, Any]]:
+    splitter = RecursiveCharacterTextSplitter(chunk_size=max_chunk, chunk_overlap=int(max_chunk * 0.18), add_start_index=True)
     initial_doc = Document(
         page_content=content, metadata={"file_path": file_path}
     )
@@ -26,11 +26,11 @@ def chunk_markdown(file_path: str, content: str, max_chunk:int = 2000) -> List[D
     return chunks
 
 
-def chunk_python(file_path: str, content: str, max_chunk: int = 2000) -> List[Dict[str, Any]]:
+def chunk_python(file_path: str, content: str, max_chunk: int) -> List[Dict[str, Any]]:
     splitter = RecursiveCharacterTextSplitter.from_language(
             language=Language.PYTHON,
             chunk_size=max_chunk,
-            chunk_overlap=int(max_chunk * 0.17),
+            chunk_overlap=int(max_chunk * 0.20),
             add_start_index=True,
         )
     initial_doc = Document(

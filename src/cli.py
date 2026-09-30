@@ -15,11 +15,12 @@ class RAGCLI:
     def index(
         self,
         raw_dir: str = "data/raw/vllm-0.10.1",
-        processed_dir: str = "data/processed"
+        processed_dir: str = "data/processed",
+        max_chunck: int = 2000
     ) -> None:
         print(f"Starting corpus indexing from: {raw_dir}")
         start_time = time.time()
-        build_and_save_index(raw_dir=raw_dir, processed_dir=processed_dir)
+        build_and_save_index(raw_dir=raw_dir, processed_dir=processed_dir, max_chunck=max_chunck)
         elapsed = time.time() - start_time
         print(f"Indexing completed in {elapsed:.2f} seconds.")
 

@@ -11,10 +11,11 @@ from rank_bm25 import BM25Okapi
 
 def build_and_save_index(
     raw_dir: str = "data/raw/vllm-0.10.1",
-    processed_dir: str = "data/processed"
+    processed_dir: str = "data/processed",
+    max_chunck: int = 2000
 ) -> None:
     print(f"--> Processing raw files from: {raw_dir}")
-    chunks: List[Dict[str, Any]] = process_corpus(raw_dir)
+    chunks: List[Dict[str, Any]] = process_corpus(raw_dir, max_chunck)
     print(f"--> Extracted total chunks: {len(chunks)}")
 
     if not chunks:
@@ -24,7 +25,7 @@ def build_and_save_index(
     tokenized_corpus: List[List[str]] = [tokenize(f"{chunk['file_path']} {chunk['file_path']}\n{chunk['text']}") for chunk in chunks]
 
     print("--> Building BM25 index...")
-    bm25_index = BM25Okapi(tokenized_corpus, k1=1.4, b=0.7)
+    bm25_index = BM25Okapi(tokenized_corpus, k1=1.8, b=0.7)
 
     os.makedirs(processed_dir, exist_ok=True)
 
