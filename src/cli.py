@@ -1,102 +1,106 @@
-import json
+"""Command-line interface for the RAG pipeline."""
+
+import os
 import time
 from pathlib import Path
-from typing import Optional
+
 import fire
+from pydantic import ValidationError
 from tqdm import tqdm
 
 from src.indexer import build_and_save_index
+from src.models import (RagDataset, StudentSearchResults,
+                        StudentSearchResultsAndAnswer, UnansweredQuestion)
 from src.retriever import BM25Retriever
-from src.generator import RAGGenerator
-from src.models import UnansweredQuestion
 
 
 class RAGCLI:
-    def index(
-        self,
-        raw_dir: str = "data/raw/vllm-0.10.1",
-        processed_dir: str = "data/processed",
-        max_chunck: int = 2000
-    ) -> None:
-        print(f"Starting corpus indexing from: {raw_dir}")
-        start_time = time.time()
-        build_and_save_index(raw_dir=raw_dir, processed_dir=processed_dir, max_chunck=max_chunck)
-        elapsed = time.time() - start_time
-        print(f"Indexing completed in {elapsed:.2f} seconds.")
+    """Index, search, answer, and evaluate source-code questions."""
 
-    def search(self, query: str, k: int = 5) -> None:
-        retriever = BM25Retriever()
-        sources = retriever.search_query(query=query, k=k)
-        print(f"\nQuery: '{query}' (Top {k} results):")
-        for i, src in enumerate(sources, 1):
-            print(f"  [{i}] Path: {src.file_path} ({src.first_character_index}:{src.last_character_index})")
+    def index(self, max_chunk_size: int = 2000,
+              raw_dir: str = "data/raw/vllm-0.10.1",
+              processed_dir: str = "data/processed") -> None:
+        """Build the search index."""
+        start = time.time()
+        build_and_save_index(raw_dir, processed_dir, max_chunk_size)
+        print(f"Indexing took {time.time() - start:.1f}s")
 
-    def search_dataset(
-        self,
-        dataset_path: str,
-        output_path: str = "data/output/search_results.json",
-        k: int = 10,
-    ) -> None:
-        """Batch-search a dataset file and save formatted results."""
-        retriever = BM25Retriever()
-        with open(dataset_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    def search(self, query: str = "", k: int = 5,
+               processed_dir: str = "data/processed") -> None:
+        """Print sources matching one query."""
+        sources = BM25Retriever(processed_dir).search_query(query, k)
+        for source in sources:
+            print(source.model_dump_json())
 
-        rag_questions = data.get("rag_questions", [])
-        search_results = []
+    def search_dataset(self, dataset_path: str = "", k: int = 10,
+                       save_directory: str = "data/output/search_results",
+                       processed_dir: str = "data/processed") -> None:
+        """Save search results for a JSON dataset."""
+        dataset = read_dataset(dataset_path)
+        retriever = BM25Retriever(processed_dir)
+        results = []
+        for question in tqdm(dataset.rag_questions, desc="Searching"):
+            results.append(retriever.search_question(question, k))
+        output = StudentSearchResults(search_results=results, k=max(k, 0))
+        saved = output_file(save_directory, dataset_path)
+        saved.write_text(output.model_dump_json(indent=2), encoding="utf-8")
+        print(f"Saved results to {saved}")
 
-        print(f"Processing {len(rag_questions)} questions from {dataset_path}...")
-        for q in tqdm(rag_questions, desc="Retrieving"):
-            sources = retriever.search_query(query=q["question"], k=k)
-            search_results.append({
-                "question_id": q["question_id"],
-                "question": q["question"],
-                "retrieved_sources": [s.model_dump() for s in sources]
-            })
+    def answer(self, query: str = "", k: int = 5,
+               processed_dir: str = "data/processed") -> None:
+        """Answer one question using Qwen."""
+        from src.generator import RAGGenerator
+        generator = RAGGenerator(processed_dir=processed_dir)
+        question = UnansweredQuestion(question=query)
+        answer = generator.answer_question(question, k)
+        print(answer.answer)
 
-        output_file = Path(output_path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump({"search_results": search_results, "k": k}, f, indent=2)
-
-        print(f"Search results saved to: {output_path}")
-
-    def answer(self, question: str, k: int = 5) -> None:
-        generator = RAGGenerator()
-        unanswered = UnansweredQuestion(question_id="cli_query", question=question)
-        ans = generator.answer_question(unanswered, k=k)
-        print(f"\nQuestion: {question}\n")
-        print(f"Generated Answer:\n{ans.answer}")
-
-    def answer_dataset(
-        self,
-        dataset_path: str,
-        output_path: str = "data/output/answers.json",
-        k: int = 5,
-    ) -> None:
-        generator = RAGGenerator()
-        with open(dataset_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        rag_questions = data.get("rag_questions", [])
+    def answer_dataset(self, student_search_results_path: str = "",
+                       save_directory: str = (
+                           "data/output/search_results_and_answer"
+                       ),
+                       processed_dir: str = "data/processed") -> None:
+        """Generate answers from an existing search-results JSON file."""
+        data = StudentSearchResults.model_validate_json(
+            Path(student_search_results_path).read_text(encoding="utf-8")
+        )
+        from src.generator import RAGGenerator
+        generator = RAGGenerator(processed_dir=processed_dir)
         answers = []
+        for result in tqdm(data.search_results, desc="Answering"):
+            answers.append(generator.generate_answer(result))
+        output = StudentSearchResultsAndAnswer(
+            search_results=answers, k=data.k
+        )
+        saved = output_file(save_directory, student_search_results_path)
+        saved.write_text(output.model_dump_json(indent=2), encoding="utf-8")
+        print(f"Saved answers to {saved}")
 
-        print(f"Answering {len(rag_questions)} questions from {dataset_path}...")
-        for q in tqdm(rag_questions, desc="Generating"):
-            unanswered = UnansweredQuestion(question_id=q["question_id"], question=q["question"])
-            ans = generator.answer_question(unanswered, k=k)
-            answers.append(ans.model_dump())
-
-        output_file = Path(output_path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump({"answers": answers}, f, indent=2)
-
-        print(f"Answers saved to: {output_path}")
+    def evaluate(self, student_search_results_path: str = "",
+                 dataset_path: str = "") -> None:
+        """Print approximate local recall based on same-file span overlap."""
+        from src.evaluation import evaluate_results
+        print(evaluate_results(student_search_results_path, dataset_path))
 
 
-def main():
-    fire.Fire(RAGCLI)
+def read_dataset(path: str) -> RagDataset:
+    """Read and validate a question dataset."""
+    content = Path(path).read_text(encoding="utf-8")
+    return RagDataset.model_validate_json(content)
+
+
+def output_file(directory: str, input_path: str) -> Path:
+    """Create a destination with the input file's original name."""
+    os.makedirs(directory, exist_ok=True)
+    return Path(directory) / Path(input_path).name
+
+
+def main() -> None:
+    """Start Fire without exposing an unhandled traceback to the reviewer."""
+    try:
+        fire.Fire(RAGCLI)
+    except (OSError, ValueError, TypeError, ValidationError, KeyError) as exc:
+        print(f"Error: {exc}")
 
 
 if __name__ == "__main__":

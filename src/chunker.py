@@ -1,77 +1,80 @@
-import ast
+"""Split vLLM source files into small chunks with source locations."""
+
 import os
-from typing import List, Dict, Any
-from langchain_text_splitters import RecursiveCharacterTextSplitter, PythonCodeTextSplitter, Language
+from typing import Any
+
 from langchain_core.documents import Document
+from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 
 
-def chunk_markdown(file_path: str, content: str, max_chunk:int) -> List[Dict[str, Any]]:
-    splitter = RecursiveCharacterTextSplitter(chunk_size=max_chunk, chunk_overlap=int(max_chunk * 0.18), add_start_index=True)
-    initial_doc = Document(
-        page_content=content, metadata={"file_path": file_path}
-    )
-    split_docs = splitter.split_documents([initial_doc])
-    chunks = []
-    for doc in split_docs:
-        start_idx = doc.metadata["start_index"]
-        end_idx = start_idx + len(doc.page_content)
-        chunks.append(
-            {
-                "file_path": doc.metadata["file_path"],
-                "first_character_index": start_idx,
-                "last_character_index": end_idx,
-                "text": doc.page_content.strip(),
-            }
-        )
-    return chunks
-
-
-def chunk_python(file_path: str, content: str, max_chunk: int) -> List[Dict[str, Any]]:
-    splitter = RecursiveCharacterTextSplitter.from_language(
-            language=Language.PYTHON,
-            chunk_size=max_chunk,
-            chunk_overlap=int(max_chunk * 0.20),
+def split_file(file_path: str, content: str, max_chunk_size: int,
+               overlap: float, language: Language | None = None
+               ) -> list[dict[str, Any]]:
+    """Split a file and keep the original character positions."""
+    if language is None:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=max_chunk_size,
+            chunk_overlap=int(max_chunk_size * overlap),
             add_start_index=True,
         )
-    initial_doc = Document(
+    else:
+        splitter = RecursiveCharacterTextSplitter.from_language(
+            language=language,
+            chunk_size=max_chunk_size,
+            chunk_overlap=int(max_chunk_size * overlap),
+            add_start_index=True,
+        )
+    document = Document(
         page_content=content, metadata={"file_path": file_path}
     )
-    split_docs = splitter.split_documents([initial_doc])
     chunks = []
-    for doc in split_docs:
-        start_idx = doc.metadata["start_index"]
-        end_idx = start_idx + len(doc.page_content)
-        chunks.append(
-            {
-                "file_path": doc.metadata["file_path"],
-                "first_character_index": start_idx,
-                "last_character_index": end_idx,
-                "text": doc.page_content.strip(),
-            }
-        )
+    for piece in splitter.split_documents([document]):
+        start = piece.metadata["start_index"]
+        chunks.append({
+            "file_path": file_path,
+            "first_character_index": start,
+            "last_character_index": start + len(piece.page_content),
+            "text": piece.page_content,
+        })
     return chunks
 
 
-def process_corpus(root_dir: str, max_chunck: int = 2000) -> List[Dict[str, Any]]:
-    all_chunks = []
-    for root, _, files in os.walk(root_dir):
-        for file in files:
-            full_path = os.path.join(root, file)
-            norm_path = full_path.replace("\\", "/")
-            
-            try:
-                with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-            except Exception:
-                continue
-                
-            if file.endswith(".py"):
-                file_chunks = chunk_python(norm_path, content, max_chunck)
-            elif file.endswith((".md", ".txt", ".rst")):
-                file_chunks = chunk_markdown(norm_path, content, max_chunck)
-            else:
-                continue
+def chunk_markdown(file_path: str, content: str,
+                   max_chunk_size: int) -> list[dict[str, Any]]:
+    """Split Markdown or plain text on paragraph and line boundaries."""
+    return split_file(file_path, content, max_chunk_size, 0.18)
 
-            all_chunks.extend(file_chunks)
- 
-    return all_chunks
+
+def chunk_python(file_path: str, content: str,
+                 max_chunk_size: int) -> list[dict[str, Any]]:
+    """Split Python code with language-aware separators."""
+    return split_file(file_path, content, max_chunk_size, 0.20,
+                      Language.PYTHON)
+
+
+def process_corpus(root_dir: str,
+                   max_chunk_size: int = 2000) -> list[dict[str, Any]]:
+    """Read and chunk supported source files under root_dir."""
+    if not 1 <= max_chunk_size <= 2000:
+        raise ValueError("max_chunk_size must be between 1 and 2000")
+    if not os.path.isdir(root_dir):
+        raise FileNotFoundError(f"Corpus directory not found: {root_dir}")
+
+    chunks: list[dict[str, Any]] = []
+    for root, dirs, files in os.walk(root_dir):
+        dirs.sort()
+        for filename in sorted(files):
+            path = os.path.join(root, filename).replace("\\", "/")
+            if not filename.endswith((".py", ".md", ".txt", ".rst")):
+                continue
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+            except OSError as exc:
+                print(f"Skipping {path}: {exc}")
+                continue
+            if filename.endswith(".py"):
+                chunks.extend(chunk_python(path, content, max_chunk_size))
+            else:
+                chunks.extend(chunk_markdown(path, content, max_chunk_size))
+    return chunks

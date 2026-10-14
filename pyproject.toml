@@ -16,3 +16,9 @@ dependencies = [
 ]
 [project.scripts]
 rag = "src.cli:main"
+
+[dependency-groups]
+dev = [
+    "flake8>=7.4.1",
+    "mypy>=2.4.0",
+]
