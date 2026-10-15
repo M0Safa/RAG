@@ -20,14 +20,26 @@ class RAGCLI:
     def index(self, max_chunk_size: int = 2000,
               raw_dir: str = "data/raw/vllm-0.10.1",
               processed_dir: str = "data/processed") -> None:
-        """Build the search index."""
+        """Build the BM25 index from the source files.
+
+        Args:
+            max_chunk_size (int): Maximum chunk size in characters.
+            raw_dir (str): Directory containing the source files.
+            processed_dir (str): Directory where the index is saved.
+        """
         start = time.time()
         build_and_save_index(raw_dir, processed_dir, max_chunk_size)
         print(f"Indexing took {time.time() - start:.1f}s")
 
     def search(self, query: str = "", k: int = 5,
                processed_dir: str = "data/processed") -> None:
-        """Print sources matching one query."""
+        """Search for relevant sources and print the results.
+
+        Args:
+            query (str): Text or question to search for.
+            k (int): Number of sources to retrieve.
+            processed_dir (str): Directory containing the BM25 index.
+        """
         sources = BM25Retriever(processed_dir).search_query(query, k)
         for source in sources:
             print(source.model_dump_json())
@@ -35,7 +47,14 @@ class RAGCLI:
     def search_dataset(self, dataset_path: str = "", k: int = 10,
                        save_directory: str = "data/output/search_results",
                        processed_dir: str = "data/processed") -> None:
-        """Save search results for a JSON dataset."""
+        """Search all questions in a dataset and save the results.
+
+        Args:
+            dataset_path (str): Path to the input question dataset.
+            k (int): Number of sources to retrieve per question.
+            save_directory (str): Directory for saving search results.
+            processed_dir (str): Directory containing the BM25 index.
+        """
         dataset = read_dataset(dataset_path)
         retriever = BM25Retriever(processed_dir)
         results = []
@@ -48,7 +67,13 @@ class RAGCLI:
 
     def answer(self, query: str = "", k: int = 5,
                processed_dir: str = "data/processed") -> None:
-        """Answer one question using Qwen."""
+        """Generate and print an answer to a single question.
+
+        Args:
+            query (str): Question to answer.
+            k (int): Number of sources to retrieve.
+            processed_dir (str): Directory containing the BM25 index.
+        """
         from src.generator import RAGGenerator
         generator = RAGGenerator(processed_dir=processed_dir)
         question = UnansweredQuestion(question=query)
@@ -60,7 +85,16 @@ class RAGCLI:
                            "data/output/search_results_and_answer"
                        ),
                        processed_dir: str = "data/processed") -> None:
-        """Generate answers from an existing search-results JSON file."""
+        """Generate answers for a dataset of retrieved questions.
+
+        Loads existing search results, generates an answer for each
+        question using Qwen, and saves the results as JSON.
+
+        Args:
+            student_search_results_path (str): Path to search results.
+            save_directory (str): Directory for saving generated answers.
+            processed_dir (str): Directory containing the BM25 index.
+        """
         data = StudentSearchResults.model_validate_json(
             Path(student_search_results_path).read_text(encoding="utf-8")
         )
@@ -78,25 +112,49 @@ class RAGCLI:
 
     def evaluate(self, student_search_results_path: str = "",
                  dataset_path: str = "") -> None:
-        """Print approximate local recall based on same-file span overlap."""
+        """Evaluate retrieved sources against the reference dataset.
+
+        Args:
+            student_search_results_path (str): Path to search results.
+            dataset_path (str): Path to the answered reference dataset.
+        """
         from src.evaluation import evaluate_results
         print(evaluate_results(student_search_results_path, dataset_path))
 
 
 def read_dataset(path: str) -> RagDataset:
-    """Read and validate a question dataset."""
+    """Read and validate a RAG question dataset.
+
+    Args:
+        path (str): Path to the dataset JSON file.
+
+    Returns:
+        RagDataset: Validated dataset containing the questions.
+    """
     content = Path(path).read_text(encoding="utf-8")
     return RagDataset.model_validate_json(content)
 
 
 def output_file(directory: str, input_path: str) -> Path:
-    """Create a destination with the input file's original name."""
+    """Create an output directory and return the output file path.
+
+    Args:
+        directory (str): Directory where the file will be saved.
+        input_path (str): Input file used to determine the filename.
+
+    Returns:
+        Path: Path where the output file should be saved.
+    """
     os.makedirs(directory, exist_ok=True)
     return Path(directory) / Path(input_path).name
 
 
 def main() -> None:
-    """Start Fire without exposing an unhandled traceback to the reviewer."""
+    """Start the command-line interface using Python Fire.
+
+    Runs the RAG commands and catches common errors to avoid
+    displaying unhandled tracebacks.
+    """
     try:
         fire.Fire(RAGCLI)
     except (OSError, ValueError, TypeError, ValidationError, KeyError) as exc:

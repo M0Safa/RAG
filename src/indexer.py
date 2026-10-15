@@ -14,7 +14,19 @@ from src.tokenizer import tokenize
 def build_and_save_index(raw_dir: str = "data/raw/vllm-0.10.1",
                          processed_dir: str = "data/processed",
                          max_chunk_size: int = 2000) -> None:
-    """Index the source code and save chunks and BM25 separately."""
+    """Build and save the BM25 index for the source files.
+
+    Reads and chunks the corpus, tokenizes each chunk, and builds
+    a BM25 index. Saves the index and chunk metadata to disk.
+
+    Args:
+        raw_dir (str): Directory containing the source files.
+        processed_dir (str): Directory where the index is saved.
+        max_chunk_size (int): Maximum chunk size in characters.
+
+    Raises:
+        ValueError: If no valid source files are found.
+    """
     chunks = process_corpus(raw_dir, max_chunk_size)
     if not chunks:
         raise ValueError(f"No supported text files found in {raw_dir}")
@@ -33,7 +45,14 @@ def build_and_save_index(raw_dir: str = "data/raw/vllm-0.10.1",
 
 def load_index_and_chunks(processed_dir: str = "data/processed"
                           ) -> tuple[BM25Okapi, list[dict[str, Any]]]:
-    """Load the saved index and its chunk metadata."""
+    """Load the saved BM25 index and chunk metadata.
+
+    Args:
+        processed_dir (str): Directory containing the saved files.
+
+    Returns:
+        tuple: The BM25 index and the list of chunk metadata.
+    """
     with open(os.path.join(processed_dir, "chunks_metadata.json"),
               "r", encoding="utf-8") as f:
         chunks: list[dict[str, Any]] = json.load(f)

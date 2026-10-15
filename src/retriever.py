@@ -14,11 +14,27 @@ class BM25Retriever:
     """Search indexed chunks and return their source positions."""
 
     def __init__(self, processed_dir: str = "data/processed") -> None:
-        """Load the saved BM25 index."""
+        """Initialize the retriever with a saved BM25 index.
+
+        Args:
+            processed_dir (str): Directory containing the index
+                and chunk metadata.
+        """
         self.bm25_index, self.chunks = load_index_and_chunks(processed_dir)
 
     def search_query(self, query: str, k: int = 5) -> list[MinimalSource]:
-        """Return up to k ranked sources for a query."""
+        """Search for the most relevant chunks for a query.
+
+        Tokenizes the query, calculates BM25 scores, and returns
+        the source positions of the highest-ranked chunks.
+
+        Args:
+            query (str): Question or text to search for.
+            k (int): Maximum number of chunks to retrieve.
+
+        Returns:
+            list[MinimalSource]: The top-k retrieved source locations.
+        """
         tokens = tokenize(query)
         if not tokens or k <= 0:
             return []
@@ -36,7 +52,17 @@ class BM25Retriever:
 
     def search_question(self, question: UnansweredQuestion | AnsweredQuestion,
                         k: int = 5) -> MinimalSearchResults:
-        """Search one question while retaining its ID."""
+        """Retrieve sources for a question and keep its information.
+
+        Args:
+            question (UnansweredQuestion | AnsweredQuestion):
+                Question to search for.
+            k (int): Maximum number of chunks to retrieve.
+
+        Returns:
+            MinimalSearchResults: Question ID, question text,
+            and retrieved source locations.
+        """
         return MinimalSearchResults(
             question_id=question.question_id,
             question=question.question,

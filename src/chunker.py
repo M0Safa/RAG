@@ -10,7 +10,19 @@ from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 def split_file(file_path: str, content: str, max_chunk_size: int,
                overlap: float, language: Language | None = None
                ) -> list[dict[str, Any]]:
-    """Split a file and keep the original character positions."""
+    """Split file content into chunks while keeping their positions.
+
+    Args:
+        file_path (str): Path to the original file.
+        content (str): Full text of the file.
+        max_chunk_size (int): Maximum number of characters per chunk.
+        overlap (float): Overlap ratio between chunks.
+        language (Language | None): Language used for splitting.
+
+    Returns:
+        list[dict[str, Any]]: Chunks with their text, file path,
+        and start and end positions.
+    """
     if language is None:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=max_chunk_size,
@@ -41,20 +53,50 @@ def split_file(file_path: str, content: str, max_chunk_size: int,
 
 def chunk_markdown(file_path: str, content: str,
                    max_chunk_size: int) -> list[dict[str, Any]]:
-    """Split Markdown or plain text on paragraph and line boundaries."""
+    """Split Markdown or text files into smaller chunks.
+
+    Args:
+        file_path (str): Path to the source file.
+        content (str): Text to split.
+        max_chunk_size (int): Maximum chunk size in characters.
+
+    Returns:
+        list[dict[str, Any]]: Chunks with their source positions.
+    """
     return split_file(file_path, content, max_chunk_size, 0.18)
 
 
 def chunk_python(file_path: str, content: str,
                  max_chunk_size: int) -> list[dict[str, Any]]:
-    """Split Python code with language-aware separators."""
+    """Split Python code into chunks using Python separators.
+
+    Args:
+        file_path (str): Path to the Python file.
+        content (str): Python code to split.
+        max_chunk_size (int): Maximum chunk size in characters.
+
+    Returns:
+        list[dict[str, Any]]: Code chunks with their source positions.
+    """
     return split_file(file_path, content, max_chunk_size, 0.20,
                       Language.PYTHON)
 
 
 def process_corpus(root_dir: str,
                    max_chunk_size: int = 2000) -> list[dict[str, Any]]:
-    """Read and chunk supported source files under root_dir."""
+    """Read supported files from a directory and split them into chunks.
+
+    Args:
+        root_dir (str): Directory containing the source files.
+        max_chunk_size (int): Maximum chunk size in characters.
+
+    Returns:
+        list[dict[str, Any]]: All chunks extracted from the files.
+
+    Raises:
+        ValueError: If the chunk size is invalid.
+        FileNotFoundError: If the source directory does not exist.
+    """
     if not 1 <= max_chunk_size <= 2000:
         raise ValueError("max_chunk_size must be between 1 and 2000")
     if not os.path.isdir(root_dir):

@@ -14,7 +14,14 @@ class RAGGenerator:
     def __init__(self, model_name: str = "Qwen/Qwen3-0.6B",
                  processed_dir: str = "data/processed",
                  device: str | None = None) -> None:
-        """Load the index and Qwen model."""
+        """Initialize the retriever, tokenizer, and language model.
+
+        Args:
+            model_name (str): Name of the Hugging Face model.
+            processed_dir (str): Directory containing the BM25 index.
+            device (str | None): Device used to run the model.
+                Uses CUDA when available, otherwise CPU.
+        """
         self.retriever = BM25Retriever(processed_dir)
         self.device = device or (
             "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,7 +33,17 @@ class RAGGenerator:
         self.model.eval()
 
     def _format_context(self, sources: list[MinimalSource]) -> str:
-        """Read only the spans selected by retrieval."""
+        """Extract text from the retrieved source locations.
+
+        Reads the original files and extracts the character ranges
+        selected by the retriever.
+
+        Args:
+            sources (list[MinimalSource]): Retrieved source locations.
+
+        Returns:
+            str: Retrieved snippets combined into one context string.
+        """
         blocks = []
         for i, source in enumerate(sources, 1):
             try:
@@ -44,7 +61,19 @@ class RAGGenerator:
 
     def generate_answer(self, results: MinimalSearchResults,
                         max_new_tokens: int = 256) -> MinimalAnswer:
-        """Generate an answer from the retrieved evidence."""
+        """Generate an answer using the retrieved context.
+
+        Builds a prompt containing the question and source snippets,
+        then uses the Qwen model to generate an answer.
+
+        Args:
+            results (MinimalSearchResults): Question and retrieved sources.
+            max_new_tokens (int): Maximum number of tokens to generate.
+
+        Returns:
+            MinimalAnswer: Generated answer with question information
+            and retrieved sources.
+        """
         context = self._format_context(results.retrieved_sources)
         messages = [
             {"role": "system", "content": (
@@ -75,6 +104,15 @@ class RAGGenerator:
 
     def answer_question(self, question: UnansweredQuestion | AnsweredQuestion,
                         k: int = 5) -> MinimalAnswer:
-        """Retrieve evidence and generate one answer."""
+        """Retrieve relevant sources and generate an answer.
+
+        Args:
+            question (UnansweredQuestion | AnsweredQuestion):
+                Question to answer.
+            k (int): Number of source chunks to retrieve.
+
+        Returns:
+            MinimalAnswer: Generated answer and its source locations.
+        """
         results = self.retriever.search_question(question, k)
         return self.generate_answer(results)
